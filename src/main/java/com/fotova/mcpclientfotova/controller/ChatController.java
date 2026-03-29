@@ -20,7 +20,7 @@ public class ChatController {
     private ChatService chatService;
 
     /**
-     * Main chat page - shows all conversations
+     * GET /chat - Main chat page with conversations list
      */
     @GetMapping("")
     public String showChatPage(HttpSession session, Model model) {
@@ -38,14 +38,16 @@ public class ChatController {
         model.addAttribute("user", user);
         model.addAttribute("conversations", conversations);
         model.addAttribute("conversationsCount", conversations.size());
+        model.addAttribute("currentConversation", null);
+        model.addAttribute("messages", List.of());
 
         return "chat";
     }
 
     /**
-     * Specific conversation page
+     * GET /chat/{conversationId} - Specific conversation page
      */
-    @GetMapping("/conversation/{conversationId}")
+    @GetMapping("/{conversationId}")
     public String showConversation(@PathVariable Long conversationId,
                                   HttpSession session,
                                   Model model) {
@@ -71,8 +73,9 @@ public class ChatController {
             model.addAttribute("currentConversation", conversation);
             model.addAttribute("messages", messages);
             model.addAttribute("conversations", conversations);
+            model.addAttribute("conversationsCount", conversations.size());
 
-            return "chat-conversation";
+            return "chat";
 
         } catch (IllegalArgumentException e) {
             // Conversation not found or doesn't belong to user
@@ -81,12 +84,10 @@ public class ChatController {
     }
 
     /**
-     * Create a new conversation
+     * POST /chat - Create a new conversation (handles "New Chat" button)
      */
-    @PostMapping("/new")
-    public String createNewConversation(@RequestParam(required = false) String title,
-                                       @RequestParam(required = false) String initialMessage,
-                                       HttpSession session) {
+    @PostMapping("")
+    public String createNewConversation(HttpSession session) {
         // Check if user is authenticated
         User user = (User) session.getAttribute("user");
 
@@ -94,31 +95,19 @@ public class ChatController {
             return "redirect:/login";
         }
 
-        // Default title if not provided
-        if (title == null || title.trim().isEmpty()) {
-            title = "Nouvelle conversation";
-        }
-
-        Conversation conversation;
-
-        if (initialMessage != null && !initialMessage.trim().isEmpty()) {
-            // Create conversation with initial message
-            conversation = chatService.createConversationWithMessage(user, title, initialMessage);
-        } else {
             // Create empty conversation
-            conversation = chatService.createConversation(user, title);
-        }
-
+        Conversation conversation = chatService.createConversation(user, "Nouvelle conversation");
         // Redirect to the new conversation
-        return "redirect:/chat/conversation/" + conversation.getId();
+        return "redirect:/chat/" + conversation.getId();
     }
 
     /**
-     * Add a message to a conversation
+     * POST /chat/send - Send a message (redirects to conversation page)
+     * This handles messages sent from the main chat form
      */
-    @PostMapping("/conversation/{conversationId}/message")
-    public String addMessage(@PathVariable Long conversationId,
-                            @RequestParam String content,
+    @PostMapping("/send")
+    public String sendMessage(@RequestParam Long conversationId,
+                            @RequestParam String message,
                             HttpSession session) {
         // Check if user is authenticated
         User user = (User) session.getAttribute("user");
@@ -132,15 +121,16 @@ public class ChatController {
             Conversation conversation = chatService.getConversationForUser(conversationId, user);
 
             // Add user message
-            chatService.addUserMessage(conversation, content);
+            chatService.addUserMessage(conversation, message);
 
-            // For now, just add a dummy assistant response
-            // Later this will be integrated with MCP server
+            // For Milestone 4: just add a dummy assistant response
+            // (LLM integration will come later)
             chatService.addAssistantMessage(conversation,
-                "Message reçu: \"" + content + "\". L'intégration MCP sera implémentée prochainement.");
-
-            // Redirect back to the conversation
-            return "redirect:/chat/conversation/" + conversationId;
+                "Message reçu : \"" + message + "\"\n\n" +
+                "Réponse du système (Mode démo) : Ceci est une réponse automatique. " +
+                "L'intégration du LLM via MCP sera implémentée dans les prochaines milestones.");
+            // Redirect back to the conversation (page reload)
+            return "redirect:/chat/" + conversationId;
 
         } catch (IllegalArgumentException e) {
             // Conversation not found or doesn't belong to user
@@ -149,7 +139,43 @@ public class ChatController {
     }
 
     /**
-     * Delete a conversation
+     * Alternative route: POST /chat/{conversationId}/send
+     * Handles messages sent from specific conversation page
+     */
+    @PostMapping("/{conversationId}/send")
+    public String addMessage(@PathVariable Long conversationId,
+                            @RequestParam String message,
+                                         HttpSession session) {
+        // Check if user is authenticated
+        User user = (User) session.getAttribute("user");
+
+        if (user == null) {
+            return "redirect:/login";
+        }
+
+        try {
+            // Get the conversation (verify it belongs to user)
+            Conversation conversation = chatService.getConversationForUser(conversationId, user);
+
+            // Add user message
+            chatService.addUserMessage(conversation, message);
+
+            // For Milestone 4: just add a dummy assistant response
+            chatService.addAssistantMessage(conversation,
+                "Message reçu : \"" + message + "\"\n\n" +
+                "Réponse du système (Mode démo) : Ceci est une réponse automatique. " +
+                "L'intégration du LLM via MCP sera implémentée dans les prochaines milestones.");
+            // Redirect back to the conversation (page reload)
+            return "redirect:/chat/" + conversationId;
+
+        } catch (IllegalArgumentException e) {
+            // Conversation not found or doesn't belong to user
+            return "redirect:/chat";
+        }
+    }
+
+    /**
+     * POST /chat/conversation/{conversationId}/delete - Delete a conversation
      */
     @PostMapping("/conversation/{conversationId}/delete")
     public String deleteConversation(@PathVariable Long conversationId,
@@ -159,7 +185,7 @@ public class ChatController {
 
         if (user == null) {
             return "redirect:/login";
-        }
+}
 
         try {
             // Verify conversation belongs to user before deleting
@@ -174,7 +200,7 @@ public class ChatController {
     }
 
     /**
-     * Update conversation title
+     * POST /chat/conversation/{conversationId}/title - Update conversation title
      */
     @PostMapping("/conversation/{conversationId}/title")
     public String updateConversationTitle(@PathVariable Long conversationId,
@@ -196,7 +222,7 @@ public class ChatController {
             }
 
             // Redirect back to the conversation
-            return "redirect:/chat/conversation/" + conversationId;
+            return "redirect:/chat/" + conversationId;
 
         } catch (IllegalArgumentException e) {
             // Conversation not found or doesn't belong to user
