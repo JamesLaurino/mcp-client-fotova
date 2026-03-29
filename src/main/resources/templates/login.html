@@ -173,10 +173,18 @@
             </ul>
         </div>
         
-        <div th:if="${param.error}" class="error-message">
+        <div th:if="${param.error}" class="error-message" th:unless="${errorMessage}">
             ❌ Identifiants incorrects. Essayez avec "admin/admin" ou "user/user"
         </div>
         
+        <div th:if="${errorMessage}" class="error-message">
+            ❌ <span th:text="${errorMessage}">Erreur d'authentification</span>
+        </div>
+
+        <div th:if="${param.logout}" class="success-message" style="background-color: #d4edda; color: #155724; padding: 12px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
+            ✅ Vous avez été déconnecté avec succès.
+        </div>
+
         <form th:action="@{/login}" method="post">
             <div class="form-group">
                 <label for="username">Nom d'utilisateur</label>
